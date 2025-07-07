@@ -15,7 +15,7 @@
  * - Custom event callbacks for advanced integrations
  *
  * If you encounter CORS issues:
- * 1. Test CORS connectivity: https://staging.neochat.neoshift.ai/api/chatbot/sdk/cors-test
+ * 1. Test CORS connectivity: https://api.neochat.io/api/chatbot/sdk/cors-test
  * 2. Ensure the API_BASE_URL is correctly configured
  * 3. For local testing, serve files from a web server instead of using file:// URLs
  */
@@ -26,8 +26,7 @@
   
   // Configuration values
   const config = {
-    projectId: '',
-    apiBaseUrl: 'https://staging.neochat.neoshift.ai' || window.location.origin,
+    apiBaseUrl: 'https://api.neochat.io' || window.location.origin,
     chatbotName: 'Mika',
     initialMessage: 'Apa kabar. Ada yang saya bisa bantu?',
     rateLimitMessage: 'Message rate limit exceeded. Please wait before sending more messages.',
@@ -296,7 +295,7 @@
     
     // Merge options with defaults
     userInitOptions = Object.assign({
-      projectId: config.projectId,
+      projectId: null,
       container: 'body',
       position: 'bottom-right',
       theme: 'light',
@@ -314,6 +313,12 @@
       onOpen: null, // Callback when widget opens
       onClose: null // Callback when widget closes
     }, options);
+
+    //Project ID Validation
+    if (!userInitOptions.projectId) {
+      console.error('NeoChat: projectId is required in init options');
+      return;
+    }
     
     // Set embedded mode flag
     isEmbeddedMode = userInitOptions.mode === 'embedded';
@@ -686,6 +691,9 @@
     // Apply embedded styles
     applyEmbeddedStyles();
     
+    // Setup resize observer for dynamic container changes
+    setupEmbeddedResizeObserver();
+    
     // Auto-scroll to bottom when in embedded mode
     scrollToBottom();
   }
@@ -962,49 +970,104 @@
   }
   
   /**
-   * Apply minimal styles for embedded mode
+   * Apply minimal styles for embedded mode with Flutter WebView compatibility
    */
   function applyEmbeddedStyles() {
     // Create style element
     const style = document.createElement('style');
     style.type = 'text/css';
     
-    // Define minimal CSS for embedded mode
+    // Define robust CSS for embedded mode that works well with Flutter WebViews
     const css = `
       .neochat-embedded-container {
+        /* Use multiple sizing strategies for maximum compatibility */
         width: 100% !important;
         height: 100% !important;
+        min-width: 100% !important;
+        min-height: 100vh !important; /* Fallback for when parent height is not defined */
+        max-width: 100% !important;
+        max-height: 100% !important;
+        
+        /* Ensure proper box model */
+        box-sizing: border-box !important;
+        
+        /* Flexbox layout */
         display: flex !important;
         flex-direction: column !important;
+        
+        /* Reset all spacing */
+        padding: 0 !important;
+        margin: 0 !important;
+        border: none !important;
+        
+        /* Visual properties */
         font-family: ${config.theme.fontFamily};
         font-size: ${config.theme.fontSize};
         color: ${config.theme.textColor};
         background-color: transparent !important;
-        border: none !important;
         box-shadow: none !important;
         border-radius: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        position: relative !important;
+        
+        /* Prevent overflow issues */
         overflow: hidden !important;
+        
+        /* Ensure container takes full space */
+        position: relative !important;
+        
+        /* Force layout recalculation - helps with Flutter WebView */
+        contain: layout style paint !important;
       }
       
       .neochat-embedded-container .neochat-chat-body {
-        flex: 1 !important;
+        /* Take all available space except footer */
+        flex: 1 1 auto !important;
+        min-height: 0 !important; /* Important for flexbox children */
+        
+        /* Scrolling */
         overflow-y: auto !important;
+        overflow-x: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        
+        /* Reset spacing */
         padding: 0 !important;
         margin: 0 !important;
+        
+        /* Visual */
         background-color: transparent !important;
-        -webkit-overflow-scrolling: touch !important;
+        
+        /* Ensure proper box model */
+        box-sizing: border-box !important;
+        
+        /* Flex container for messages */
+        display: flex !important;
+        flex-direction: column !important;
       }
       
       .neochat-embedded-container .neochat-chat-messages {
+        /* Flex grow to fill body */
+        flex: 1 1 auto !important;
+        
+        /* Layout */
         display: flex !important;
         flex-direction: column !important;
+        justify-content: flex-end !important; /* Align messages to bottom */
+        
+        /* Spacing */
         padding: 10px !important;
         margin: 0 !important;
-        min-height: calc(100% - 60px) !important;
+        
+        /* Ensure minimum height but allow growth */
+        min-height: fit-content !important;
+        
+        /* Visual */
         background-color: transparent !important;
+        
+        /* Box model */
+        box-sizing: border-box !important;
+        
+        /* Prevent horizontal overflow */
+        width: 100% !important;
+        overflow-x: hidden !important;
       }
       
       .neochat-embedded-container .neochat-message {
@@ -1013,6 +1076,8 @@
         border-radius: 18px !important;
         margin-bottom: 10px !important;
         word-break: break-word !important;
+        box-sizing: border-box !important;
+        flex-shrink: 0 !important; /* Prevent messages from shrinking */
       }
       
       .neochat-embedded-container .neochat-bot-message {
@@ -1030,39 +1095,85 @@
       }
       
       .neochat-embedded-container .neochat-chat-footer {
-        border-top: 1px solid ${config.theme.borderColor} !important;
-        padding: 10px !important;
-        display: flex !important;
-        background-color: transparent !important;
-        margin: 0 !important;
+        /* Fixed height footer */
+        flex: 0 0 auto !important;
         min-height: 60px !important;
+        max-height: 80px !important;
+        
+        /* Layout */
+        display: flex !important;
+        align-items: center !important;
+        
+        /* Spacing */
+        padding: 10px !important;
+        margin: 0 !important;
+        
+        /* Visual */
+        border-top: 1px solid ${config.theme.borderColor} !important;
+        background-color: transparent !important;
+        
+        /* Box model */
         box-sizing: border-box !important;
+        
+        /* Ensure full width */
+        width: 100% !important;
+        
+        /* Prevent shrinking */
+        flex-shrink: 0 !important;
       }
       
       .neochat-embedded-container .neochat-message-input {
-        flex: 1 !important;
+        /* Take available space */
+        flex: 1 1 auto !important;
+        min-width: 0 !important; /* Allow shrinking if needed */
+        
+        /* Styling */
         border: 1px solid ${config.theme.borderColor} !important;
         border-radius: 20px !important;
         padding: 8px 15px !important;
         margin-right: 10px !important;
         outline: none !important;
+        
+        /* Typography */
         font-family: inherit !important;
         font-size: inherit !important;
+        
+        /* Colors */
         background-color: ${config.theme.backgroundColor} !important;
         color: ${config.theme.textColor} !important;
+        
+        /* Box model */
+        box-sizing: border-box !important;
+        
+        /* Ensure proper height */
+        height: 40px !important;
+        max-height: 40px !important;
       }
       
       .neochat-embedded-container .neochat-send-button {
+        /* Fixed size */
+        flex: 0 0 auto !important;
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px !important;
+        min-height: 40px !important;
+        
+        /* Layout */
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        
+        /* Styling */
         background-color: ${config.theme.buttonColor} !important;
         color: ${config.theme.buttonTextColor} !important;
         border: none !important;
         border-radius: 50% !important;
-        width: 36px !important;
-        height: 36px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
         cursor: pointer !important;
+        
+        /* Box model */
+        box-sizing: border-box !important;
+        
+        /* Prevent shrinking */
         flex-shrink: 0 !important;
       }
       
@@ -1073,6 +1184,7 @@
       /* Typing indicator styles for embedded mode */
       .neochat-embedded-container .neochat-typing {
         max-width: 60px !important;
+        flex-shrink: 0 !important;
       }
       
       .neochat-embedded-container .neochat-typing-content {
@@ -1091,6 +1203,7 @@
         background-color: ${config.theme.textColor} !important;
         border-radius: 50% !important;
         animation: typingAnimation 1s infinite ease-in-out !important;
+        flex-shrink: 0 !important;
       }
       
       .neochat-embedded-container .neochat-typing-dot:nth-child(2) {
@@ -1145,16 +1258,33 @@
       /* Custom CSS for embedded mode */
       ${config.customCss}
       
+      /* Flutter WebView specific fixes */
+      @media screen {
+        .neochat-embedded-container {
+          /* Ensure container expands to fill Flutter WebView */
+          min-height: 100vh !important;
+          min-width: 100vw !important;
+        }
+      }
+      
       /* Responsive design for embedded mode */
       @media (max-width: 768px) {
         .neochat-embedded-container .neochat-message-input {
           font-size: 16px !important; /* Prevent iOS zoom */
           padding: 12px 15px !important; /* Larger touch target */
+          height: 44px !important; /* Larger touch target */
+          max-height: 44px !important;
         }
         
         .neochat-embedded-container .neochat-send-button {
           width: 44px !important; /* Larger touch target */
           height: 44px !important;
+          min-width: 44px !important;
+          min-height: 44px !important;
+        }
+        
+        .neochat-embedded-container .neochat-chat-footer {
+          min-height: 70px !important; /* Accommodate larger touch targets */
         }
       }
     `;
@@ -1164,6 +1294,44 @@
     
     // Add to the document head
     document.head.appendChild(style);
+  }
+  
+  /**
+   * Setup resize observer for embedded mode to handle dynamic container changes
+   */
+  function setupEmbeddedResizeObserver() {
+    if (!isEmbeddedMode || !chatContainer) return;
+    
+    // Use ResizeObserver if available (modern browsers)
+    if (typeof ResizeObserver !== 'undefined') {
+      const resizeObserver = new ResizeObserver(entries => {
+        for (let entry of entries) {
+          console.log('[NeoChat Embedded] Container resized:', {
+            width: entry.contentRect.width,
+            height: entry.contentRect.height
+          });
+          
+          // Force layout recalculation
+          if (chatMessages) {
+            chatMessages.style.height = 'auto';
+            setTimeout(() => {
+              scrollToBottom();
+            }, 50);
+          }
+        }
+      });
+      
+      resizeObserver.observe(chatContainer);
+    }
+    
+    // Fallback: Listen for window resize events
+    window.addEventListener('resize', () => {
+      if (isEmbeddedMode && chatContainer) {
+        setTimeout(() => {
+          scrollToBottom();
+        }, 100);
+      }
+    });
   }
   
   /**
@@ -1181,7 +1349,7 @@
     // Add diagnostic information
     console.log("SDK Config:", config);
     console.log("API Base URL:", config.apiBaseUrl);
-    console.log("Project ID:", config.projectId);
+    console.log("Project ID:", userInitOptions.projectId);
     console.log("Current Origin:", window.location.origin);
     
     // If running from a local file (file://), we need special handling
