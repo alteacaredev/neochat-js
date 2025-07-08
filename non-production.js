@@ -578,7 +578,7 @@
     messageInput = document.createElement('input');
     messageInput.type = 'text';
     messageInput.className = 'neochat-message-input';
-    messageInput.placeholder = 'Type your message...';
+    messageInput.placeholder = 'Ketik pesan Anda...';
     messageInput.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         sendMessage(messageInput.value);
@@ -661,7 +661,7 @@
     messageInput = document.createElement('input');
     messageInput.type = 'text';
     messageInput.className = 'neochat-message-input';
-    messageInput.placeholder = 'Type your message...';
+    messageInput.placeholder = 'Ketik pesan Anda...';
     messageInput.addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
         sendMessage(messageInput.value);
@@ -1179,6 +1179,13 @@
       
       .neochat-embedded-container .neochat-send-button:hover {
         opacity: 0.9 !important;
+      }
+      
+      /* Typing indicator styles for embedded mode */
+      @keyframes typingAnimation {
+        0% { opacity: 0.3; transform: translateY(0px); }
+        50% { opacity: 1; transform: translateY(-2px); }
+        100% { opacity: 0.3; transform: translateY(0px); }
       }
       
       /* Typing indicator styles for embedded mode */
@@ -1881,7 +1888,7 @@
                             currentInputStep = null;
                             lastCollectInputMessage = null;
                             if (messageInput) {
-                              messageInput.placeholder = 'Type your message...';
+                              messageInput.placeholder = 'Ketik pesan Anda...';
                             }
                           }
                           
