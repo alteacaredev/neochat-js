@@ -984,7 +984,7 @@
         width: 100% !important;
         height: 100% !important;
         min-width: 100% !important;
-        min-height: 100vh !important; /* Fallback for when parent height is not defined */
+        min-height: 100% !important; /* Changed from 100vh to 100% for Flutter WebView compatibility */
         max-width: 100% !important;
         max-height: 100% !important;
         
@@ -994,6 +994,7 @@
         /* Flexbox layout */
         display: flex !important;
         flex-direction: column !important;
+        flex: 1 1 auto !important; /* Allow container to grow/shrink within parent */
         
         /* Reset all spacing */
         padding: 0 !important;
