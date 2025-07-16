@@ -15,7 +15,7 @@
  * - Custom event callbacks for advanced integrations
  *
  * If you encounter CORS issues:
- * 1. Test CORS connectivity: https://api.neochat.io/api/chatbot/sdk/cors-test
+ * 1. Test CORS connectivity: https://staging.neochat.neoshift.ai/api/chatbot/sdk/cors-test
  * 2. Ensure the API_BASE_URL is correctly configured
  * 3. For local testing, serve files from a web server instead of using file:// URLs
  */
@@ -26,7 +26,7 @@
   
   // Configuration values
   const config = {
-    apiBaseUrl: 'https://api.neochat.io' || window.location.origin,
+    apiBaseUrl: 'https://staging.neochat.neoshift.ai' || window.location.origin,
     chatbotName: 'Mika',
     initialMessage: 'Apa kabar. Ada yang saya bisa bantu?',
     rateLimitMessage: 'Message rate limit exceeded. Please wait before sending more messages.',
@@ -71,6 +71,7 @@
   let isWidgetOpen = false;
   let isInitialized = false;
   let isSessionInitialized = false;
+  let isSessionInitializing = false; // New: Prevent race conditions
   let userInitOptions = {};
   let typingTimeout = null;
   let initTimeout = null;
@@ -441,7 +442,7 @@
     console.log('User information set:', userData);
     
     // If we haven't initialized the session yet, do it now
-    if (isInitialized && !isSessionInitialized) {
+    if (isInitialized && !isSessionInitialized && !isSessionInitializing) {
       // Clear any pending initialization timeout
       if (initTimeout) {
         clearTimeout(initTimeout);
@@ -1351,8 +1352,23 @@
       return;
     }
     
+    if (isSessionInitializing) {
+      console.warn('Chat session initialization already in progress');
+      return;
+    }
+    
+    isSessionInitializing = true;
     console.log("Initializing chat session with user data:", userData);
     showTypingIndicator();
+    
+    // Safety timeout to prevent flag from getting stuck (30 seconds)
+    const initSafetyTimeout = setTimeout(() => {
+      if (isSessionInitializing && !isSessionInitialized) {
+        console.warn('Session initialization timed out, clearing flag');
+        isSessionInitializing = false;
+        hideTypingIndicator();
+      }
+    }, 30000);
 
     // Add diagnostic information
     console.log("SDK Config:", config);
@@ -1409,6 +1425,8 @@
       console.log('Chat session initialized:', data);
       sessionData.sessionId = data.sessionId;
       isSessionInitialized = true;
+      isSessionInitializing = false; // Clear initialization flag
+      clearTimeout(initSafetyTimeout); // Clear safety timeout
 
       hideTypingIndicator();
       
@@ -1424,6 +1442,8 @@
     })
     .catch(error => {
       console.error('Error initializing chat session:', error);
+      isSessionInitializing = false; // Clear initialization flag on error
+      clearTimeout(initSafetyTimeout); // Clear safety timeout
       
       // Handle specific errors with clearer messaging
       if (error.message && (error.message.includes('Failed to fetch') || 
